@@ -1,0 +1,314 @@
+#include "sgp30_i2c.h"
+
+#include "app_utils_i2c.h"
+
+#define SGP30_SCL_CLOCK_PERIOD_MS 2
+#define DELAY_MS (SGP30_SCL_CLOCK_PERIOD_MS / 2)
+
+static const char *TAG = "SGP30_I2C"
+
+static esp_err_t sgp30_i2c_wait_while_clock_stretching(
+		uint8_t scl )
+{
+	ESP_LOGD(TAG, "Trying to detect SCL high while clock stretching.");
+
+	esp_err_t ret;
+	
+	// 150 ms timeout
+	uint32_t timeout_cycles = 150 / SGP30_SCL_CLOCK_PERIOD_MS;
+
+	uint8_t level;
+
+	while (--timeout_cycles)
+	{
+		ESP_LOGV(TAG, "Reading SCL level. Cycles left: %d.", timeout_cycles);
+		if ( (ret = app_i2c_SCL_read(scl, &level)) == ESP_OK && level)
+		{
+			ESP_LOGD(TAG, "SCL pin HIGH level detected after clk stretching.");
+			return ESP_OK;
+		}
+		else if (ret == ESP_ERR_INVALID_ARG)
+		{
+			ESP_LOGE(TAG, "Error reading SCL while clock stretching.");
+			return ret;
+		}
+
+		ESP_LOGV(TAG,
+			"Sleeping for SCL clock period (%d ms).",
+			SGP30_SCL_CLOCK_PERIOD_MS
+		);
+		app_i2c_sleep(SGP30_SCL_CLOCK_PERIOD_MS);
+	}
+
+	ESP_LOGE(TAG, "Timeout while trying to detect SCL in clk stretching.");
+	return ESP_FAIL;
+}
+
+
+static esp_err_t sgp30_i2c_write_byte(
+		uint8_t    scl  ,
+		uint8_t    sda  ,
+		uint8_t    data )
+{
+	ESP_LOGD(TAG, "Writing byte into SGP30. Data: %d.", data);
+
+	esp_err_t ret;
+
+	int8_t  nack;
+	int8_t  i;
+	uint8_t level;
+)
+	for (i = 7; i >= 0; i--)
+	{
+		ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+		if ( (data >> i) & 0x01 )
+			ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+		else
+			ESP_ERROR_CHECK( app_i2c_SDA_out(sda) );
+		app_i2c_sleep(DELAY_MS);
+
+		ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+		app_i2c_sleep(DELAY_MS);
+
+		if ( (ret = sgp30_i2c_wait_while_clock_stretching(scl)) != ESP_OK )
+			goto write_byte_error;
+	}
+
+	ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+	app_i2c_sleep(DELAY_MS);
+
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	if ( (ret = sgp30_i2c_wait_while_clock_stretching(scl)) != ESP_OK )
+		goto write_byte_error;
+
+	app_i2c_SDA_read(sda, &level);
+	ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+
+	ret = ESP_FAIL;
+	if (level == 0)
+		goto write_byte_error;
+
+	return ESP_OK;
+
+write_byte_error:
+	ESP_LOGE(TAG, "Error while writing byte in SGP30.");
+	return ret;
+}
+
+static esp_err_t sgp30_i2c_read_byte(
+		uint8_t  scl  ,
+		uint8_t  sda  ,
+		uint8_t  ack  ,
+		uint8_t *data )
+{
+	ESP_LOGD(TAG, "Reading byte from SGP30. Data: %d.", data);
+
+	esp_err_t ret;
+
+	uint8_t level;
+	int8_t  i;
+
+	&data = 0;
+
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+	for (i = 7; i >= 0; i--)
+	{
+		app_i2c_sleep(DELAY_MS);
+		
+		ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+		if ( (ret = sgp30_i2c_wait_while_clock_stretching(scl)) != ESP_OK )
+			goto read_byte_error;
+
+		ESP_ERROR_CHECK( app_i2c_SDA_read(sda, &level) );
+		data |= level << i;
+		ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+	}
+
+	if (ack)
+		ESP_ERROR_CHECK( app_i2c_SDA_out(sda) );
+	else
+		ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+	app_i2c_sleep(DELAY_MS);
+	
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	app_i2c_sleep(DELAY_MS);
+
+	if ( (ret = sgp30_i2c_wait_while_clock_stretching(scl)) != ESP_OK )
+		goto read_byte_error;
+
+	ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+
+	return ESP_OK;
+
+read_byte_error:
+	ESP_LOGE(TAG, "Error while reading byte from SGP30.");
+	return ret;
+}
+
+
+static esp_err_t sgp30_i2c_start(
+		uint8_t scl ,
+		uint8_t sda )
+{
+	ESP_LOGD(TAG, "Starting I2C communication with SGP30");
+
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	if ( (ret = sgp30_i2c_wait_while_clock_stretching(scl)) != ESP_OK )
+		goto start_error;
+
+	ESP_ERROR_CHECK( app_i2c_SDA_out(sda) );
+	app_i2c_sleep(DELAY_MS);
+
+	ESP_ERROR_CHECK( app_i2c_SCL_out(scl) );
+	app_i2c_sleep(DELAY_MS);
+
+	return ESP_OK;
+
+start_error:
+	ESP_LOGE(TAG, "Error while starting SGP30 I2C communication.");
+	return ret;
+}
+
+static esp_err_t sgp30_i2c_stop(
+		uint8_t scl ,
+		uint8_t sda )
+{
+	ESP_LOGD(TAG, "Stopping I2C communication with SGP30");
+
+	ESP_ERROR_CHECK( app_i2c_SDA_out(sda) );
+	app_i2c_sleep(DELAY_MS);
+	
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	app_i2c_sleep(DELAY_MS);
+	
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+	app_i2c_sleep(DELAY_MS);
+
+	return ESP_OK;
+}
+
+esp_err_t sgp30_i2c_init(
+		uint8_t scl ,
+		uint8_t sda )
+{
+	ESP_LOGD(TAG, "Initializing I2C communication pins.");
+
+	app_i2c_init_pins(sda, scl);
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+
+	return ESP_OK;
+}
+
+esp_err_t sgp30_i2c_release(
+		uint8_t scl ,
+		uint8_t sda )
+{
+	ESP_LOGD(TAG, "Releasing I2C communication pins.");
+
+	ESP_ERROR_CHECK( app_i2c_SCL_in(scl) );
+	ESP_ERROR_CHECK( app_i2c_SDA_in(sda) );
+	app_i2c_release_pins(scl, sda);
+}
+
+esp_err_t sgp30_i2c_write(
+		uint8_t         scl     ,
+		uint8_t         sda     ,
+		uint8_t         address ,
+		uint8_t const  *data    ,
+		uint16_t        count   )
+{
+	ESP_LOGD(TAG, "Writing a string of %d bytes into SGP30.", count);
+
+	esp_err_t ret;
+	
+	uint16_t i;
+
+	ESP_LOGV(TAG, "Starting I2C communication.");
+	ret = sgp30_i2c_start(scl, sda);
+	if (ret != ESP_OK)
+		goto write_error;
+	
+	ESP_LOGV(TAG, "Writing op write address into SGP30.");
+	ret = sgp30_i2c_write_byte(scl, sda, address << 1);
+	if (ret != ESP_OK)
+	{
+		sgp30_i2c_stop(scl, sda);
+		goto write_error;
+	}
+
+	ESP_LOGV(TAG, "Writing string of bytes into SGP30.");
+	for (i = 0; i < count; ++i)
+	{
+		ESP_LOGV(TAG, "Writing byte no. %d / %d.", i, count);
+		ret = sgp30_i2c_write_byte(scl, sda, data[i]);
+		if (ret != ESP_OK)
+		{
+			sgp30_i2c_stop(scl, sda);
+			goto write_error;
+		}
+	}
+
+	ESP_LOGV(TAG, "Stopping I2C communication.");
+	sgp30_i2c_stop(scl, sda);
+
+	return ESP_OK;
+
+write_error:
+	ESP_LOGE(TAG, "Error while writing data into SGP30.");
+	return ret;
+}
+
+esp_err_t sgp30_i2c_read(
+		uint8_t    scl     ,
+		uint8_t    sda     ,
+		uint8_t    address ,
+		uint8_t   *data    ,
+		uint16_t   count   )
+{
+	ESP_LOGD(TAG, "Reading a string of %d bytes from SGP30.", count);
+
+	esp_err_t ret;
+	
+	uint16_t i;
+	uint8_t  send_ack;
+
+	ESP_LOGV(TAG, "Starting I2C communication.");
+	ret = sgp30_i2c_start(scl, sda);
+	if (ret != ESP_OK)
+		goto read_error;
+	
+	ESP_LOGV(TAG, "Writing op read address into SGP30.");
+	ret = sgp30_i2c_write_byte(scl, sda, (address << 1) | 1);
+	if (ret != ESP_OK)
+	{
+		sgp30_i2c_stop(scl, sda);
+		goto read_error;
+	}
+
+	ESP_LOGV(TAG, "Writing string of bytes into SGP30.");
+	for (i = 0; i < count; ++i)
+	{
+		ESP_LOGV(TAG, "Reading byte no. %d / %d.", i, count);
+
+		send_ack = i < (count - 1); // last byte must be NACK'ed
+		ret = sgp30_i2c_read_byte(scl, sda, send_ack, data + i);
+		if (ret != ESP_OK)
+		{
+			sgp30_i2c_stop(scl, sda);
+			goto read_error;
+		}
+	}
+
+	ESP_LOGV(TAG, "Stopping I2C communication.");
+	sgp30_i2c_stop(scl, sda);
+
+	return ESP_OK;
+
+read_error:
+	ESP_LOGE(TAG, "Error while reading data from iSGP30.");
+	return ret;
+}
+

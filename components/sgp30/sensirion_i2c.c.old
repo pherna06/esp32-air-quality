@@ -45,7 +45,7 @@ static int8_t sensirion_wait_while_clock_stretching(
 
 	while (--timeout_cycles)
 	{
-		if (i2c_SCL_read( (gpio_num_t) scl ))
+		if (i2c_SCL_read( (gpio_num_t) scl )
 			return NO_ERROR;
 		i2c_sleep_usec(SENSIRION_I2C_CLOCK_PERIOD_USEC);
 	}
