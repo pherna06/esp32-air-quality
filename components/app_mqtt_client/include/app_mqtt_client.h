@@ -1,0 +1,1 @@
+typedef app_mqtt_client_handle_t;
