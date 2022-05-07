@@ -1,15 +1,16 @@
 #include "app_i2c.h"
 
-#include "defines_log.h"
 #include "driver/gpio.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h" // delay
 
 // LOG
-static const char *TAG = "APP_I2C_LOW_LEVEL";
-#define LOG_LOCAL_LEVEL APP_I2C_LL_LOG_LEVEL
 #include "esp_log.h"
+static const char *TAG = "APP_I2C_LOW_LEVEL";
+
+#include "defines_log.h"
+#define LOG_LOCAL_LEVEL APP_I2C_LL_LOG_LEVEL
 
 esp_err_t app_i2c_ll_init_pins(
 		uint8_t scl ,
@@ -19,16 +20,15 @@ esp_err_t app_i2c_ll_init_pins(
 		"Initializing SCL (GPIO %d) and SDA (GPIO %d) pins.",
 		scl, sda
 	);
-	
-	esp_err_t ret = ESP_OK;
 
 	// Always return ESP_OK.
 	ESP_LOGV(TAG, "Resetting SCL (GPIO %d) pin", scl);
 	gpio_reset_pin( (gpio_num_t) scl );
+
 	ESP_LOGV(TAG, "Resetting SDA (GPIO %d) pin", sda);
 	gpio_reset_pin( (gpio_num_t) sda );
 
-	return ret;
+	return ESP_OK;
 }
 
 esp_err_t app_i2c_ll_release_pins(
@@ -40,8 +40,6 @@ esp_err_t app_i2c_ll_release_pins(
 		scl, sda
 	);
 
-	esp_err_t ret = ESP_OK;
-
 	// Always return ESP_OK.
 	ESP_LOGV(TAG, "Resetting SCL (GPIO %d) pin", scl);
 	gpio_reset_pin( (gpio_num_t) scl );
@@ -49,7 +47,7 @@ esp_err_t app_i2c_ll_release_pins(
 	ESP_LOGV(TAG, "Resetting SDA (GPIO %d) pin", sda);
 	gpio_reset_pin( (gpio_num_t) sda );
 
-	return ret;
+	return ESP_OK;
 }
 
 esp_err_t app_i2c_ll_SDA_in(
@@ -62,7 +60,7 @@ esp_err_t app_i2c_ll_SDA_in(
 
 	esp_err_t ret;
 
-	// As input
+	// Set as input
 	ESP_LOGV(TAG, "Setting SDA (GPIO %d) pin as input.", sda);
 	ret = gpio_set_direction( (gpio_num_t) sda, GPIO_MODE_INPUT);
 	if (ret == ESP_ERR_INVALID_ARG)
@@ -141,17 +139,25 @@ esp_err_t app_i2c_ll_SDA_read(
 		uint8_t  sda   ,
 		uint8_t *level )
 {
-	esp_err_t ret = ESP_OK;
-
+	ESP_LOGD(TAG,
+		"Reading bit from SDA (GPIO %d) pin.",
+		sda
+	);
+	
 	// Always return 0 or 1.
 	*level = gpio_get_level( (gpio_num_t) sda);
 
-	return ret;
+	return ESP_OK;
 }
 
 esp_err_t app_i2c_ll_SCL_in(
 		uint8_t scl )
 {
+	ESP_LOGD(TAG,
+		"Setting SCL (GPIO %d) pin as input with internal pull-up.",
+		scl
+	);
+	
 	esp_err_t ret;
 
 	// As input
@@ -182,6 +188,11 @@ esp_err_t app_i2c_ll_SCL_in(
 esp_err_t app_i2c_ll_SCL_out(
 		uint8_t scl )
 {
+	ESP_LOGD(TAG,
+		"Setting SCL (GPIO %d) pin as output with LOW level.",
+		scl
+	);
+
 	esp_err_t ret;
 
 	// Disable internal pull-up
@@ -224,16 +235,24 @@ esp_err_t app_i2c_ll_SCL_read(
 		uint8_t  scl   ,
 		uint8_t *level )
 {
-	esp_err_t ret = ESP_OK;
+	ESP_LOGD(TAG,
+		"Reading bit from SCL (GPIO %d) pin.",
+		scl
+	);
 
 	// Always return 0 or 1.
 	*level = gpio_get_level( (gpio_num_t) scl);
 
-	return ret;
+	return ESP_OK;
 }
 
 void app_i2c_ll_sleep(
 		uint32_t ms )
 {
-	vTaskDelay( (TickType_t) (ms / portTICK_PERIOD_MS) );
+	ESP_LOGD(TAG,
+		"I2C logic sleep for %d ms.",
+		ms
+	);
+
+	vTaskDelay( ms / portTICK_PERIOD_MS );
 }

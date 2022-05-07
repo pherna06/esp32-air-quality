@@ -1,7 +1,6 @@
 idf_component_register(
 	SRCS
 		sgp30.c
-		sgp30_i2c.c
 	INCLUDE_DIRS
 		.
 		include

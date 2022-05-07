@@ -129,36 +129,33 @@ typedef struct {
 } app_i2c_config_args_t;
 
 typedef struct {
-	char      slave[128]    ;
-	uint8_t   scl           ;
-	uint8_t   sda           ;
-	uint32_t  scl_period_ms ;
-	uint32_t  op_delay_ms   ; // half SCL period
+	char                  *name ;
+	app_i2c_config_args_t *args ;
 } app_i2c_handle_t;
 
 /**
- * @brief Creates an I2C handle with given slave configuration.
+ * @brief Creates an I2C handle with given configuration.
  * 
  * Configuration options for SCL/SDA GPIO pins, SCL clock period and low level
  * op delay (should be period / 2).
  * 
  * Memory allocation! Handle should be deleted after use. See app_i2c_delete().
  * 
- * @param[in]  slave string with slave name identification.
+ * @param[in]  name  string with name identification.
  * @param[in]  args  struct with configuration data.
  * @param[out] i2c   handle generated with memory allocation.
  * 
  * @return ESP_OK (always successful)
  */
 esp_err_t app_i2c_create(
-		const char            *slave ,
+		char                  *name ,
 		app_i2c_config_args_t *args  ,
 		app_i2c_handle_t      *i2c   );
 
 /**
- * @brief Deletes an I2C slave handle.
+ * @brief Deletes an I2C handle.
  * 
- * @param[out] i2c   slave handle to be deleted
+ * @param[out] i2c handle to be deleted
  * 
  * @return ESP_OK (always successful)
  */
@@ -170,7 +167,7 @@ esp_err_t app_i2c_delete(
  * 
  * Aborts app if I2C low-level error.
  * 
- * @param[in] i2c slave handle to perform initialization.
+ * @param[in] i2c handle to perform initialization.
  * 
  * @return ESP_OK (always successful if no abort)
  */
@@ -182,7 +179,7 @@ esp_err_t app_i2c_init(
  * 
  * Aborts app if I2C low-level error.
  * 
- * @param[in] i2c slave handle to perform resource release.
+ * @param[in] i2c handle to perform resource release.
  * 
  * @return ESP_OK (always successful if no abort).
  */
@@ -195,10 +192,10 @@ esp_err_t app_i2c_release(
  * 
  * Aborts app if I2C low-level error.
  * 
- * @param[in] i2c     slave handle for I2C operation.
- * @param[in] address 7-bit I2C address for slave.
+ * @param[in] i2c     handle for I2C operation.
+ * @param[in] address 7-bit I2C address for device.
  * @param[in] data    pointer to buffer containing the bytes to write.
- * @param[in] count   number of bytes to read from the buffer and send to slave.
+ * @param[in] count   number of bytes to read from the buffer and send to device.
  * 
  * @return ESP_OK on success.
  * @return Error otherwise.
@@ -215,10 +212,10 @@ esp_err_t app_i2c_write(
  * 
  * Aborts app if I2C low-level error.
  * 
- * @param[in] i2c     slave handle for I2C operation.
- * @param[in] address 7-bit I2C address for slave.
+ * @param[in] i2c     handle for I2C operation.
+ * @param[in] address 7-bit I2C address for device.
  * @param[in] data    pointer to buffer where read data will be stored.
- * @param[in] count   number of bytes to read from the slave into the buffer.
+ * @param[in] count   number of bytes to read from the device into the buffer.
  * 
  * @return ESP_OK on success.
  * @return Error otherwise.
